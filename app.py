@@ -56,25 +56,29 @@ if "manual_orders" not in st.session_state:
 # ------------------------------------------------------------------ #
 @st.cache_data
 def generate_sample_data():
-    """Generate realistic synthetic backtest results."""
-    np.random.seed(42)
+    """Generate realistic synthetic backtest results matching actual backtest profile."""
     dates = pd.bdate_range("2016-01-04", "2024-12-31")
     n = len(dates)
 
+    # Calibrated to approximate real backtest results (with survivorship bias).
+    # Each strategy uses its own RNG seed for independent draws.
     strategies = {
-        "Momentum": {"mu": 0.00065, "sigma": 0.014, "sharpe": 0.82},
-        "Value": {"mu": 0.00035, "sigma": 0.011, "sharpe": 0.56},
-        "Quality": {"mu": 0.00040, "sigma": 0.010, "sharpe": 0.71},
-        "Multi-Factor": {"mu": 0.00055, "sigma": 0.011, "sharpe": 0.89},
+        "Momentum": {"mu": 0.00078, "sigma": 0.0145, "seed": 100},
+        "Value": {"mu": 0.00060, "sigma": 0.0125, "seed": 200},
+        "Quality": {"mu": 0.00050, "sigma": 0.0110, "seed": 300},
+        "Multi-Factor": {"mu": 0.00070, "sigma": 0.0120, "seed": 401},
     }
 
     results = {}
     for name, params in strategies.items():
-        returns = np.random.normal(params["mu"], params["sigma"], n)
-        # Add regime effects
-        returns[500:600] -= 0.015  # drawdown period
-        returns[1000:1020] -= 0.025  # covid crash
-        returns[1020:1100] += 0.008  # recovery
+        rng = np.random.RandomState(params["seed"])
+        returns = rng.normal(params["mu"], params["sigma"], n)
+        sigma = params["sigma"]
+        # COVID crash (Feb-Mar 2020) and recovery
+        returns[1000:1020] -= sigma * 1.5
+        returns[1020:1100] += sigma * 0.5
+        # 2022 rate hikes — mild broad drawdown
+        returns[1500:1560] -= sigma * 0.3
 
         ret_series = pd.Series(returns, index=dates)
         equity = (1 + ret_series).cumprod() * 100_000
@@ -108,9 +112,11 @@ def generate_sample_data():
         }
 
     # SPY benchmark
-    spy_ret = np.random.normal(0.00045, 0.012, n)
-    spy_ret[1000:1020] -= 0.030
-    spy_ret[1020:1080] += 0.006
+    spy_rng = np.random.RandomState(500)
+    spy_ret = spy_rng.normal(0.00050, 0.012, n)
+    spy_ret[1000:1020] -= 0.022
+    spy_ret[1020:1080] += 0.005
+    spy_ret[1500:1560] -= 0.003
     benchmark = pd.Series(spy_ret, index=dates)
 
     return results, benchmark
