@@ -240,12 +240,16 @@ def fmt_ratio(v):
 # Alpaca helpers (paper trading)
 # ------------------------------------------------------------------ #
 def get_alpaca_client():
-    """Get Alpaca TradingClient, returns None if keys not set."""
-    api_key = os.getenv("ALPACA_API_KEY") or st.secrets.get(
-        "ALPACA_API_KEY", ""
+    """Get Alpaca TradingClient from secrets, env, or session state."""
+    api_key = (
+        os.getenv("ALPACA_API_KEY")
+        or st.secrets.get("ALPACA_API_KEY", "")
+        or st.session_state.get("alpaca_key", "")
     )
-    api_secret = os.getenv("ALPACA_API_SECRET") or st.secrets.get(
-        "ALPACA_API_SECRET", ""
+    api_secret = (
+        os.getenv("ALPACA_API_SECRET")
+        or st.secrets.get("ALPACA_API_SECRET", "")
+        or st.session_state.get("alpaca_secret", "")
     )
     if not api_key or not api_secret:
         return None
@@ -534,15 +538,27 @@ with tab_paper:
     client = get_alpaca_client()
 
     if client is None:
-        st.error(
-            "Add Alpaca API keys to connect. Set them in "
-            "`.streamlit/secrets.toml` or as environment variables."
+        st.subheader("Connect to Alpaca Paper Trading")
+        st.caption(
+            "Enter your Alpaca paper trading API keys. "
+            "Get them free at [alpaca.markets](https://alpaca.markets)."
         )
-        st.code(
-            '# .streamlit/secrets.toml\n'
-            'ALPACA_API_KEY = "your_key"\n'
-            'ALPACA_API_SECRET = "your_secret"'
-        )
+        key_col1, key_col2 = st.columns(2)
+        with key_col1:
+            entered_key = st.text_input(
+                "API Key", type="password", key="input_alpaca_key"
+            )
+        with key_col2:
+            entered_secret = st.text_input(
+                "API Secret", type="password", key="input_alpaca_secret"
+            )
+        if st.button("Connect", key="connect_keys_btn", type="primary"):
+            if entered_key and entered_secret:
+                st.session_state.alpaca_key = entered_key
+                st.session_state.alpaca_secret = entered_secret
+                st.rerun()
+            else:
+                st.error("Both API Key and Secret are required.")
     else:
         # Connect / refresh
         if st.button("Connect / Refresh", key="connect_btn"):
@@ -699,7 +715,7 @@ with tab_monitor:
     client = get_alpaca_client()
 
     if client is None:
-        st.info("Add Alpaca API keys to enable the Portfolio Monitor.")
+        st.info("Enter your Alpaca API keys in the **Paper Trading** tab to connect.")
     else:
         if st.button("Refresh", key="refresh_btn"):
             st.session_state.account = run_async(fetch_account(client))
